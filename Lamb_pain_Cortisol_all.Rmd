@@ -1,0 +1,152 @@
+---
+title: "Lamb_pain_Cortisol_all"
+author: "Shuaimin Kang"
+date: "8/8/2017"
+output: html_document
+---
+
+```{r echo=FALSE}
+setwd("/Users/skang/Downloads/2017Consulting/lamb MEL")
+load("KBeltaireStatsNumeric.RData")
+library("ggplot2")
+library("tidyr")
+Cort <- gather(C.all1, value = "value",
+          key = "type", `-0.5`, `0.25`, `0.75`, `3`, `12`, `24`)
+Cort$type <- as.numeric(Cort$type)
+```
+
+#Plot time vs cortisol level by person by group
+```{r echo=FALSE}
+ggplot(Cort, aes(x=type, y=value,color=Lamb)) + geom_point()+ geom_line() + facet_wrap(~Tx, ncol = 10) + labs(x="time",y="cortisol")
+
+```
+
+#Plot time vs increase of cortisol level since initial time -0.5 by person by group
+```{r echo=FALSE}
+Cort1 <- Cort
+for (i in 1:length(Cort1$Lamb)){
+  Cort1$value[i] <- Cort1$value[i] - Cort$value[Cort1$type==-0.5 & Cort1$Lamb==Cort1$Lamb[i]]
+}
+
+ggplot(Cort1, aes(x=type, y=value,color=Lamb)) + geom_point()+ geom_line() + facet_wrap(~Tx, ncol = 10) + labs(x="time",y="cortisol")
+```
+
+```{r echo=FALSE}
+
+gm <- aggregate(Cort["value"],list(Cort$Tx,Cort$type),FUN=mean)
+gm1 <- gm
+gm1$value[gm1$Group.1=="C"] = gm1$value[gm1$Group.1=="C"] - gm1$value[gm1$Group.1=="C"][1]
+
+gm1$value[gm1$Group.1=="M"] = gm1$value[gm1$Group.1=="M"] - gm1$value[gm1$Group.1=="M"][1]
+
+names(gm1) <- c("Group","time","cortisol")
+```
+
+#Plot of difference of mean cortisol level at time t and at initial time t=-0.5. 
+
+```{r echo=FALSE}
+ggplot(gm1, aes(x=time, y=cortisol,color=Group)) + geom_point() + geom_line() + ggtitle("mean cortisol level at t - mean cortisol level at t=-0.5")
+```
+
+```{r echo=FALSE}
+ttestf <- function(dat, time, alternative){
+  dat.Control <- dat$value[dat$Tx=="C" & dat$type==time] - dat$value[dat$Tx=="C" & dat$type==-0.5]
+  dat.Treat <- dat$value[dat$Tx=="M" & dat$type==time]- dat$value[dat$Tx=="M" & dat$type==-0.5]
+  return(t.test(dat.Control, dat.Treat, alternative=alternative))
+}
+
+
+wilcoxtestf <- function(dat, time, alternative){
+  dat.Control <- dat$value[dat$Tx=="C" & dat$type==time] - dat$value[dat$Tx=="C" & dat$type==-0.5]
+  dat.Treat <- dat$value[dat$Tx=="M" & dat$type==time]- dat$value[dat$Tx=="M" & dat$type==-0.5]
+  return(wilcox.test(dat.Control-dat.Treat, alternative=alternative))
+}
+```
+
+
+t-test for mean difference: cortisol level at time t=0.25 - at initial time t=-0.5
+```{r echo=FALSE}
+print(paste0("t-test for Cortosis Level at time ", 0.25))
+print(ttestf(dat=Cort, time= 0.25, alternative = "greater"))
+```
+
+
+t-test for mean difference: cortisol level at time t=0.75 - at initial time t=-0.5
+
+```{r echo=FALSE}
+print(paste0("t-test for Cortosis Level at time ", 0.75))
+print(ttestf(dat=Cort, time= 0.75, alternative = "greater"))
+```
+
+
+t-test for mean difference: cortisol level at time t=3 - at initial time t=-0.5
+```{r echo=FALSE}
+print(paste0("t-test for Cortosis Level at time ", 3))
+print(ttestf(dat=Cort, time= 3, alternative = "greater"))
+```
+
+t-test for mean difference: cortisol level at time t=12 - at initial time t=-0.5
+
+```{r echo=FALSE}
+print(paste0("t-test for Cortosis Level at time ", 12))
+print(ttestf(dat=Cort, time= 12, alternative = "less"))
+```
+
+t-test for mean difference: cortisol level at time t=24 - at initial time t=-0.5
+
+```{r echo=FALSE}
+print(paste0("t-test for Cortosis Level at time ", 24))
+print(ttestf(dat=Cort, time= 24, alternative = "less"))
+```
+# Mixed effect and fixed effect model on increase of cortisol level, order = 2
+
+
+```{r echo=FALSE}
+library(lme4)
+#print(Cort[Cort$Lamb==514,])
+#print(Cort1[Cort1$Lamb==514,])
+Cort <- Cort1
+#print(Cort1)
+
+Cort$t <- Cort$type
+Cort$t2 <- (Cort$type)^2
+
+lmm1 <- lmer(value ~ (t+t2)*Tx + (1 | Lamb), data = Cort, REML=FALSE)
+lmm2 <- lmer(value ~ (t+t2)*Tx + (1 + t| Lamb), data = Cort, REML=FALSE)
+lmm3 <- lmer(value ~ (t+t2)*Tx + (1 + t + t2| Lamb), data = Cort, REML=FALSE)
+
+lm <- lm(value ~ (t+t2)*Tx, data=Cort)
+
+anova(lmm1, lmm2, lmm3)
+summary(lmm1)
+lmm11 <- lmer(value ~ t + t2 + Tx + t*Tx + (1 | Lamb), data = Cort, REML=FALSE)
+lmm12 <- lmer(value ~ t + t2 + Tx + (1 | Lamb), data = Cort, REML=FALSE)
+
+anova(lmm12, lmm11, lmm1)
+summary(lmm11)
+#summary(lmm3)
+#summary(lm)
+
+```
+
+
+# Mixed effect and fixed effect model on increase of cortisol level, order = 1 Linear
+```{r echo=FALSE}
+library(lme4)
+Cort$t <- Cort$type
+Cort$t2 <- (Cort$type)^2
+
+lmm1 <- lmer(value ~ (t)*Tx + (1 | Lamb), data = Cort, REML=FALSE)
+lmm2 <- lmer(value ~ (t)*Tx + (1 + t| Lamb), data = Cort, REML=FALSE)
+
+lm <- lm(value ~ (t)*Tx, data=Cort)
+
+anova(lmm2, lmm1, lm)
+summary(lmm1)
+lmm11 <- lmer(value ~ t + Tx + (1 | Lamb), data = Cort, REML=FALSE)
+
+anova(lmm1, lmm11)
+```
+
+### linear slope for C: -0.097, linear slope for M: -0.1+0.0768=-0.063;
+Cortisol level is more stable for lambs taking MEL.   
